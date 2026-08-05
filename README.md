@@ -49,9 +49,29 @@ That is also why this ticks **hourly** and not every 15 minutes: one tick copies
 
 `c_sentinel_manifest` is the same idea applied to a claim: it asserts the manifest exists **and** that `health.py` actually reads it, because a file nobody consults is decoration.
 
+## Every guard here has been seen firing
+
+```
+$ python3 prove.py
+  [FIRES] c_sentinel_manifest    when: required_checks.json is deleted
+  [FIRES] d_prs_landed           when: a pull request has been sitting 20 days
+  [FIRES] r_prove_covers_checks  when: a check loses its scenario in prove.py
+  ...
+  9/9 guards proven to fire and then go quiet
+```
+
+This repository enforces *"a guard ships with the reproduction that makes it fire"* on everything else in the stack. It had eight guards and no reproduction for any of them — the only component exempt from its own standard, while catching two real defects in two days.
+
+The two checks that read live GitHub were the reason: they could not be driven to failure on demand. Their data source is now injectable, so `d_findings_closed` and `d_prs_landed` are proven from canned fixtures. Production is untouched — no fixture set means the same `gh` call as before.
+
+`r_prove_covers_checks` closes the loop cheaply: every check must have a scenario, checked on every tick. Running the whole harness hourly would cost minutes to re-prove scenarios that only change when `checks.py` changes. What rots silently is **coverage** — a new guard quietly joining the set nobody has watched fail.
+
+It found its own gap immediately: added to `BY_TWIN`, it failed on itself for having no scenario.
+
 ## Run it
 
 ```bash
+python3 prove.py             # make all 9 guards fire
 python3 ratchet.py verdict   # run the checks, print, change nothing
 python3 ratchet.py tick      # + emit four frames and anchor
 python3 ratchet.py report    # the paragraph a person needs
