@@ -43,6 +43,16 @@ def fail(cid, detail, critical=False):
             "detail": detail}
 
 
+def _self_dir() -> Path:
+    """Our own tree, overridable so guards ABOUT this repo can be proven.
+
+    A guard that can only ever read the live checkout cannot be driven to
+    failure, which is the exact property this repository refuses to accept
+    anywhere else.
+    """
+    return Path(os.path.expanduser(os.environ.get("RATCHET_SELF", str(HOME))))
+
+
 def _highwater(key, value):
     """Record the best ever seen. Returns (best, regressed_by).
 
@@ -65,6 +75,24 @@ def _highwater(key, value):
 
 
 def _gh(args, timeout=90):
+    """Run gh, or read a canned response when a fixture directory is set.
+
+    The two debt checks read live GitHub state, which made them the only guards
+    here that could not be driven to failure on demand. By this repository's own
+    standard that is indistinguishable from a guard that cannot fail, so the
+    data source is injectable.
+
+    Production is untouched: with RATCHET_GH_FIXTURE unset this is the same
+    subprocess call it always was.
+    """
+    fixture_dir = os.environ.get("RATCHET_GH_FIXTURE")
+    if fixture_dir:
+        key = "-".join(a for a in args if not a.startswith("--"))
+        key = re.sub(r"[^A-Za-z0-9_.-]", "_", key) + ".json"
+        path = Path(fixture_dir) / key
+        if not path.is_file():
+            raise RuntimeError(f"no gh fixture for {key}")
+        return path.read_text(encoding="utf-8")
     r = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=timeout)
     if r.returncode != 0:
         raise RuntimeError((r.stderr or "gh failed").strip()[:200])
@@ -199,8 +227,12 @@ def r_overwatch_guards():
 
 def r_twin_count():
     """Twins may be added. A twin that disappears takes a vantage with it."""
+    # SELF is overridable so this guard can be driven to failure against a
+    # throwaway copy. It counts our own twins as well as the overwatch's, and a
+    # guard that can only ever read the live tree cannot be proven.
+    self_dir = _self_dir()
     total = 0
-    for repo in (OVERWATCH, HOME):
+    for repo in (OVERWATCH, self_dir):
         tp = repo / "twins.py"
         if not tp.exists():
             return fail("r_twin_count", f"{repo.name}/twins.py missing", critical=True)
@@ -250,10 +282,45 @@ def f_subject_reachable():
     return ok("f_subject_reachable", "overwatch and sentinel both present")
 
 
+def r_prove_covers_checks():
+    """Every check here must have a scenario in prove.py.
+
+    This repository enforces "a guard ships with the reproduction that makes it
+    fire" on everything else, and had eight guards and no reproduction for any
+    of them. Adding a check without a scenario is the regression that matters,
+    and it is silent -- the new guard simply joins the set nobody has watched
+    fail.
+
+    Deliberately cheap. Running the whole harness on every tick would cost
+    minutes and only re-prove scenarios that change when this file changes;
+    c_overwatch_prove already pays that price one level down, and CI can pay it
+    here. What is checked on every tick is COVERAGE, because that is what
+    silently rots.
+    """
+    pp = _self_dir() / "prove.py"
+    if not pp.is_file():
+        return fail("r_prove_covers_checks", "prove.py is gone", critical=True)
+    body = pp.read_text(encoding="utf-8")
+    block = re.search(r"SCENARIOS\s*=\s*\[(.*?)\n\]", body, re.S)
+    covered = set(re.findall(r'\(\s*"([a-z0-9_]+)"', block.group(1))) if block else set()
+    declared = {fn.__name__ for fns in BY_TWIN.values() for fn in fns}
+    missing = sorted(declared - covered)
+    if missing:
+        return fail("r_prove_covers_checks",
+                    f"{len(missing)} check(s) have no scenario: " + ", ".join(missing),
+                    critical=True)
+    best, regressed = _highwater("prove_scenarios", len(covered))
+    if regressed:
+        return fail("r_prove_covers_checks",
+                    f"{len(covered)} scenarios, down {regressed} from {best}", critical=True)
+    return ok("r_prove_covers_checks",
+              f"all {len(declared)} checks have a scenario ({len(covered)} total)")
+
+
 BY_TWIN = {
     "claims":  [c_overwatch_prove, c_sentinel_manifest],
     "debt":    [d_findings_closed, d_prs_landed],
-    "ratchet": [r_overwatch_guards, r_twin_count],
+    "ratchet": [r_overwatch_guards, r_twin_count, r_prove_covers_checks],
     "drift":   [f_readme_matches_code, f_subject_reachable],
 }
 
