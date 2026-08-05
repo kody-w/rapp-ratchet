@@ -1,3 +1,13 @@
 __pycache__/
 *.pyc
 logs/
+
+# Runtime state, written by the ticking process. Tracking these made the live
+# install dirty its own working tree every tick, so git pull aborted and the
+# watcher silently stopped receiving its own updates. The chains are the
+# tamper-evident record and must persist on disk -- untracked, never deleted.
+state/
+neighborhood/anchors.jsonl
+neighborhood/subject-anchors.jsonl
+neighborhood/identities.json
+neighborhood/*/chain.jsonl
