@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.rapp.ratchet</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__DIR__/run.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>__HOME__</string>
+    <!-- Spelled out because launchd's session PATH is /usr/bin:/bin:/usr/sbin:/sbin
+         and contains no Homebrew. A job that finds its interpreter interactively
+         and not under launchd is the most common way one of these dies quietly. -->
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:__HOME__/.local/bin</string>
+  </dict>
+
+  <!-- Hourly. A tick here RUNS the overwatch proof harness, which copies the
+       sentinel two dozen times and takes minutes. That cost is the point: it
+       is the difference between "a proof exists" and "the proof still passes".
+       It is also why this must not run every 15 minutes. -->
+  <key>StartInterval</key>
+  <integer>3600</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Deliberately NOT KeepAlive: a periodic task, not a daemon. KeepAlive
+       restarts it in a tight loop the moment a tick exits. -->
+  <key>StandardOutPath</key>
+  <string>__DIR__/logs/launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__DIR__/logs/launchd.err.log</string>
+</dict>
+</plist>
