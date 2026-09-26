@@ -1,5 +1,9 @@
 # rapp-ratchet
 
+<!-- rapp1:network-header:start -->
+[![RAPP/1](https://kody-w.github.io/rapp-hive-public/portfolio/badges/rapp-ratchet.svg)](https://github.com/kody-w/rapp-hive-public/blob/main/portfolio/repos/rapp-ratchet.md) · **New to RAPP?** [Start here: get your Brainstem →](https://github.com/kody-w/rapp-installer#start-here)
+<!-- rapp1:network-header:end -->
+
 **Four twins that watch the maintainer, not the machine.**
 
 A ratchet only turns one way. Every check here can be satisfied by doing the work, and none can be satisfied by saying it was done.
